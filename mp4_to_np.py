@@ -110,10 +110,31 @@ def test():
         
     
     # showXYCoords(testimage,xyCoordsList,3)
+    test=xyCoordsToMatte(testimage,xyCoordsList[0]).astype(np.uint8)
+    showImg(test)
     
     1+1
     
-
+def xyCoordsToMatte(image,xyCoordsInt):
+    matte=np.zeros(np.shape(image))
+    #Filter xyCoords das "Sattelpunkte" entfernt werden. x(n-1)==x(n+1) --> roll
+    xyCoordsIntRoll=np.roll(xyCoordsInt[:,1],2)
+    mask=np.roll(np.diff((xyCoordsInt[:,1],xyCoordsIntRoll),axis=0),-1)
+    xyCoordsIntFilt=xyCoordsInt[np.squeeze(mask)!=0]
+    xUnique=np.unique(xyCoordsIntFilt[:,1]).astype(int)
+    for x in xUnique:
+        #Last index is biggest
+        n=-1
+        xUniqueXYSorted=np.sort(xyCoordsIntFilt[xyCoordsIntFilt[:,1]==x],axis=0).astype(int)
+        # matte[xUniqueXYSorted[n,0],xUniqueXYSorted[n,1]]=255
+        switch=True
+        size=xUniqueXYSorted[:,0].size+1
+        # print('size {} and x value {}'.format(size, xUniqueXYSorted[n,1]))
+        for n in range (-2,-size,-1):
+            print('y:{}:{} and x value {} ist {}'.format(xUniqueXYSorted[n,0],xUniqueXYSorted[n+1,0], xUniqueXYSorted[n,1],switch))
+            matte[xUniqueXYSorted[n,0]:xUniqueXYSorted[n+1,0],xUniqueXYSorted[n,1]]= switch * 255
+            switch = not switch
+    return matte
 
 def xyCoordsInterp(xyCoords):
     #Filter duplicate, linked x values. Starting from top to allow deleting
@@ -149,27 +170,60 @@ def xyCoordsInterp(xyCoords):
     i=np.shape(xyCoords)[0]-1
     neededSize=1
     if i>1:
-        while i >0:
-            neededSize=neededSize + abs(xyCoords[i,1]-xyCoords[i-1,1])
-            i = i-1
+        neededSize=np.sum(np.abs((np.diff((xyCoords[:,1],np.roll(xyCoords[:,1],-1,axis=0)),axis=0))))
+        # while i >0:
+        #     neededSize=neededSize + abs(xyCoords[i,1]-xyCoords[i-1,1])
+        #     i = i-1
             
     xyCoordsInt=np.empty((int(neededSize),3))
     
+    # rowInt=0
+    # for row in range(0,np.shape(xyCoords)[0]-1,1):
+    #     xyCoordsInt[rowInt,:]=xyCoords[row,:]
+    #     delta=xyCoords[row+1,1]-xyCoords[row,1]
+    #     if abs(delta)>1:
+    #         vorZeichen=(delta>0)*1+(delta<=0)*-1
+    #         xValues=np.arange(xyCoords[row,1]+vorZeichen,xyCoords[row+1,1],vorZeichen)
+            
+    #         deltaY=xyCoords[row+1,0]-xyCoords[row,0]
+    #         vorZeichen=(deltaY>0)*1+(deltaY<=0)*-1
+    #         step=deltaY/abs(delta)
+    #         if step==0:
+    #             yValues=np.ones(int(abs(delta)-1))*xyCoords[row,0]
+    #         else:
+    #             yValues=np.arange(xyCoords[row,0]+step,xyCoords[row+1,0]-step/2,step)
+                
+    #         yValues=np.round(yValues).astype(int)
+            
+    #         angles=np.ones(int(abs(delta)-1))*xyCoords[row,2]
+            
+    #         data=np.stack((yValues,xValues,angles),axis=1)
+    #         xyCoordsInt[rowInt+1:int(rowInt+abs(delta)),:]=data
+            
+    #     rowInt =int(rowInt+abs(delta))
+    
+    # xyCoordsInt[-1,:]=xyCoords[-1,:]
+        
+        
     rowInt=0
-    for row in range(0,np.shape(xyCoords)[0]-1,1):
+    for row in range(0,np.shape(xyCoords)[0],1):
+        row2= row+1
+        if row==np.shape(xyCoords)[0]-1:
+            row2=0
+
         xyCoordsInt[rowInt,:]=xyCoords[row,:]
-        delta=xyCoords[row+1,1]-xyCoords[row,1]
+        delta=xyCoords[row2,1]-xyCoords[row,1]
         if abs(delta)>1:
             vorZeichen=(delta>0)*1+(delta<=0)*-1
-            xValues=np.arange(xyCoords[row,1]+vorZeichen,xyCoords[row+1,1],vorZeichen)
+            xValues=np.arange(xyCoords[row,1]+vorZeichen,xyCoords[row2,1],vorZeichen)
             
-            deltaY=xyCoords[row+1,0]-xyCoords[row,0]
+            deltaY=xyCoords[row2,0]-xyCoords[row,0]
             vorZeichen=(deltaY>0)*1+(deltaY<=0)*-1
             step=deltaY/abs(delta)
             if step==0:
                 yValues=np.ones(int(abs(delta)-1))*xyCoords[row,0]
             else:
-                yValues=np.arange(xyCoords[row,0]+step,xyCoords[row+1,0]-step/2,step)
+                yValues=np.arange(xyCoords[row,0]+step,xyCoords[row2,0]-step/2,step)
                 
             yValues=np.round(yValues).astype(int)
             
@@ -180,9 +234,7 @@ def xyCoordsInterp(xyCoords):
             
         rowInt =int(rowInt+abs(delta))
     
-    xyCoordsInt[-1,:]=xyCoords[-1,:]
-        
-    
+    # xyCoordsInt[-1,:]=xyCoords[-1,:]
     
     return xyCoordsInt
             
@@ -729,5 +781,5 @@ def findStartAngle(testimage,y,x,lengthCheck):
     return (hlp==0)*(f360to180(startAngles[1][index_min])+180-90)+(hlp==1)*(f360to180(startAngles[1][index_max]+90+180))    
     
 if __name__ == "__main__":
-    # testimage=main()
+    testimage=main()
     test()
