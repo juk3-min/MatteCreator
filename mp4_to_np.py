@@ -19,10 +19,46 @@ from scipy.ndimage import gaussian_filter as gauss
 
 
 
+def main():
+    #Makes numpy Arrays from video
+    buf=giveImgsFromVid('small.mp4')
     
-def test(image):
+    buf_gray=rgb2gray(buf)
+    showUsedMatteFromDxDy(buf)
+    
+    
+
+    
+    
+    
+def showUsedMatteFromDxDy(buf):
+        #Pictures to DxDy with gray scaling included
+        buf_dx=(255*giveDxDxDiff(buf,5,5)).astype(np.uint8)
         
-    imageChecked=np.zeros(np.shape(image), dtype=bool)
+        #buf gray to schwellwert
+        images=np.array(image_functions.schwellwert(buf_dx,10), dtype=np.uint8)
+        playNpArray(images)
+        
+        images=images[52:73,:,:]
+        buf_gray=buf_gray[52:73,:,:]
+
+        images=list(images)
+
+        results=list(map(matteFromDxDySchwellert,images))
+       
+        for n in range(0,len(images)):
+             #Makeing Matte Bigger
+             results[n]=np.array(image_functions.schwellwert(gauss(results[n],sigma=5),200), dtype=np.uint8)
+             
+             images[n]=np.min((gauss(results[n],sigma=2),buf_gray[n]*255),axis=0).astype(np.uint8)
+             showImg(images[n])
+             
+        playNpArray(np.asarray(images))
+        
+        
+        
+def matteFromDxDySchwellert(image):
+            imageChecked=np.zeros(np.shape(image), dtype=bool)
     
     #Seed for searching
     y=100
@@ -97,26 +133,22 @@ def test(image):
         
         xyCoordsList[-1]=np.append(xyCoordsList[-1],xyCoordsRev,axis=0)
         
-        # showXYCoords(image,xyCoordsList,3)
+        #Since only the first Element is lead to a matte other can be ignored. Should be done for outline search in similar manner
+        break
         
 
 
         
     for i, xyCoords in enumerate(xyCoordsList):
         xyCoordsList[i]=xyCoordsInterp(xyCoords)
+        #Since only the first Element is lead to a matte other can be ignored. Should be done for outline search in similar manner
+        break
     
     
-        # print("objekt aus fkt " + str(test))
-        # xyCoords=test
-        # print("objekt nach übergabe? " + str(xyCoords))
-     
         
     
-    
-    test=xyCoordsToMatte(image,xyCoordsList[0]).astype(np.uint8)
-    # showImg(test)
-    return test
-    # return xyCoordsList
+    #Returns xyCoords Background Array with matte frome the FIRST outline in the xyCoordsList
+    return xyCoordsToMatte(image,xyCoordsList[0]).astype(np.uint8)
 
     
 def xyCoordsToMatte(image,xyCoordsInt):
@@ -135,7 +167,7 @@ def xyCoordsToMatte(image,xyCoordsInt):
         size=xUniqueXYSorted[:,0].size+1
         # print('size {} and x value {}'.format(size, xUniqueXYSorted[n,1]))
         for n in range (-2,-size,-1):
-            print('y:{}:{} and x value {} ist {}'.format(xUniqueXYSorted[n,0],xUniqueXYSorted[n+1,0], xUniqueXYSorted[n,1],switch))
+            # print('y:{}:{} and x value {} ist {}'.format(xUniqueXYSorted[n,0],xUniqueXYSorted[n+1,0], xUniqueXYSorted[n,1],switch))
             matte[xUniqueXYSorted[n,0]:xUniqueXYSorted[n+1,0],xUniqueXYSorted[n,1]]= switch * 255
             switch = not switch
     return matte
@@ -630,38 +662,7 @@ def outlineDetection(image, seedy, seedx, minOutlineSize, outlineShape, searchPa
         1+1
         
 
-def main():
 
-    #Create CV Video object from mp4
-    cap =cv2.VideoCapture('small.mp4')
-    frameCount =100 #int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    frameWidth = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    frameHeight = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    
-    #Create np with correct Dimensions with 3 Layers for RGB or HSV etc.
-    buf=np.empty((frameCount,frameHeight,frameWidth,3),np.dtype('uint8'))
-    
-    fc=0
-    ret =True
-    
-    #Read Video data to npArray
-    while (fc<frameCount and ret):
-        ret, buf[fc] =cap.read()
-        fc +=1
-        
-    # playNpArray(buf)
-    
-    #Closes video stream
-    cap.release()
-    cv2.destroyAllWindows()
-    
-    
-    buf_gray=(255*giveDxDxDiff(buf,5,5)).astype(np.uint8)
-    # playNpArray(buf_gray)
-    images=np.array(image_functions.schwellwert(buf_gray,10), dtype=np.uint8)
-    playNpArray(images)
-    
-    return images, rgb2gray(buf)
 
 def showImg(image):
     if str(image.dtype)=='uint8':
@@ -776,19 +777,35 @@ def findStartAngle(image,y,x,lengthCheck):
     hlp=max([0,1],key=[abs(startAngles[0][index_min]),abs(startAngles[0][index_max])].__getitem__)
     return (hlp==0)*(f360to180(startAngles[1][index_min])+180-90)+(hlp==1)*(f360to180(startAngles[1][index_max]+90+180))    
    
+def giveImgsFromVid(filename):
+
+    #Create CV Video object from mp4
+    cap =cv2.VideoCapture(filename)
+    frameCount =100 #int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    frameWidth = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frameHeight = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    
+    #Create np with correct Dimensions with 3 Layers for RGB or HSV etc.
+    buf=np.empty((frameCount,frameHeight,frameWidth,3),np.dtype('uint8'))
+    fc=0
+    ret =True
+    
+    #Read Video data to npArray
+    while (fc<frameCount and ret):
+        ret, buf[fc] =cap.read()
+        fc +=1
+        
+    # playNpArray(buf)
+    
+    #Closes video stream
+    cap.release()
+    cv2.destroyAllWindows()
+    return buf
+
 
 
 if __name__ == "__main__":
-    testimages,buf=main()
-    testimages=testimages[52:73,:,:]
-    buf=buf[52:73,:,:]
-    testimages=list(testimages)
+    main()
     
+
     
-    results=list(map(test,testimages))
-    
-    for n in range(0,len(testimages)):
-         testimages[n]=np.min((gauss(results[n],sigma=2),buf[n]*255),axis=0).astype(np.uint8)
-         showImg(testimages[n])
-    
-    playNpArray(np.asarray(testimages))
