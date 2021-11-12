@@ -6,7 +6,7 @@ from skimage import util
 from skimage.color import rgb2gray
 import image_functions
 from functools import partial
-
+from scipy.ndimage import gaussian_filter as gauss
 
 # Starts searching for an outline from the defined seed as y,x Pixel coordinate. An outline (1=perfect´white)
 # must have at least mitOutlineSize as size. Size measurement depends on the chosen shape default is cube.
@@ -20,13 +20,13 @@ from functools import partial
 
 
     
-def test():
+def test(image):
         
-    imageChecked=np.zeros(np.shape(testimage), dtype=bool)
+    imageChecked=np.zeros(np.shape(image), dtype=bool)
     
     #Seed for searching
     y=100
-    x=320
+    x=450
     
     #Must be odd!
     minSize=3
@@ -41,15 +41,15 @@ def test():
         
         while searchOutline:
             print("Outline Search Start bei x = " + str(x))
-            y,x=leftSearch(testimage,y,x-1,imageChecked)
-            searchOutline,y,x,maxSize, schwelleReached=checkCubeSize(testimage,y,x,minSize,schwelle, 1)
+            y,x=leftSearch(image,y,x-1,imageChecked)
+            searchOutline,y,x,maxSize, schwelleReached=checkCubeSize(image,y,x,minSize,schwelle, 1)
             counter +=1
             
             imageMeshSearched=x<=0
                 
             # print("Search Outline Tries: " + str(counter))
             # print("Erreichter Fillgrad :" + str(schwelleReached))
-            if counter >40:
+            if counter >40 or imageMeshSearched:
                 imageMeshSearched=True
                 break
            
@@ -73,14 +73,14 @@ def test():
         
         #Find Start angle by trying to find what is outside(empty) and inside(full)
         #Right =0, down=90,up=-90
-        startAngle=findStartAngle(testimage,y,x,lengthCheck)
+        startAngle=findStartAngle(image,y,x,lengthCheck)
         try:
             xyCoordsList
         except NameError:
-            xyCoords=walkAlongOutlineBiased(startAngle,y,x,maxSize,schwelle/3,3*dist2Center, True)
+            xyCoords=walkAlongOutlineBiased(image,startAngle,y,x,maxSize,schwelle/3,3*dist2Center, True)
             xyCoordsList=[xyCoords]
         else:
-            xyCoordsNew=walkAlongOutlineBiased(startAngle,y,x,maxSize,schwelle/3,3*dist2Center, True)
+            xyCoordsNew=walkAlongOutlineBiased(image, startAngle,y,x,maxSize,schwelle/3,3*dist2Center, True)
             xyCoordsList.append(xyCoordsNew)
             
 
@@ -91,29 +91,33 @@ def test():
         else:
             counterAngle=-180+((xyCoords[1,2]+buffer+180)%180)
 
-        xyCoordsRev=walkAlongOutlineBiased(counterAngle,y,x,maxSize,schwelle/3,3*dist2Center, False)
+        xyCoordsRev=walkAlongOutlineBiased(image, counterAngle,y,x,maxSize,schwelle/3,3*dist2Center, False)
         
         xyCoordsRev=np.flipud(xyCoordsRev)
         
         xyCoordsList[-1]=np.append(xyCoordsList[-1],xyCoordsRev,axis=0)
         
-
+        # showXYCoords(image,xyCoordsList,3)
+        
 
 
         
     for i, xyCoords in enumerate(xyCoordsList):
         xyCoordsList[i]=xyCoordsInterp(xyCoords)
+    
+    
         # print("objekt aus fkt " + str(test))
         # xyCoords=test
         # print("objekt nach übergabe? " + str(xyCoords))
      
         
     
-    # showXYCoords(testimage,xyCoordsList,3)
-    test=xyCoordsToMatte(testimage,xyCoordsList[0]).astype(np.uint8)
-    showImg(test)
     
-    1+1
+    test=xyCoordsToMatte(image,xyCoordsList[0]).astype(np.uint8)
+    # showImg(test)
+    return test
+    # return xyCoordsList
+
     
 def xyCoordsToMatte(image,xyCoordsInt):
     matte=np.zeros(np.shape(image))
@@ -141,25 +145,40 @@ def xyCoordsInterp(xyCoords):
     x=xyCoords[-1,1]
     mask_array=np.ones(np.shape(xyCoords)[0]).astype(bool)
     i=np.shape(xyCoords)[0]-1
+    counter1=0
+    counter2=0
     while i >=0:
+        found=False
+        # counter1 +=1
+        # if counter1>100:
+        #     1+1
+            
         ii=i
-        while xyCoords[i,1]==x:
+        while xyCoords[i,1]==x and ii-i<xyCoords[:,1].size:
+            found=True
+            # counter2 +=1
+            # if counter2>100:
+            #     1+1
+            
             i -=1
         
-        i+=1
-        
+        i += found * 1
         if i<ii:
             if i<0:
                 xyCoords=np.roll(xyCoords,-i,axis=0)
                 mask_array=np.roll(mask_array,-i,axis=0)
-                mask_array[i-i:ii-i+1]=False
-                mask_array[i-i+yMax]=True
+                
+                yMax=int(np.argmax(xyCoords[0:-i+ii+1,0]))
+                mask_array[0:-i+ii+1]=False
+                mask_array[yMax]=True
+                
                 xyCoords=np.roll(xyCoords,+i,axis=0)
                 mask_array=np.roll(mask_array,+i,axis=0)
             else:
                 yMax=int(np.argmax(xyCoords[i:ii+1,0]))
                 mask_array[i:ii+1]=False
                 mask_array[i+yMax]=True
+
         
         i = i-1
         x=xyCoords[i,1]
@@ -177,33 +196,7 @@ def xyCoordsInterp(xyCoords):
             
     xyCoordsInt=np.empty((int(neededSize),3))
     
-    # rowInt=0
-    # for row in range(0,np.shape(xyCoords)[0]-1,1):
-    #     xyCoordsInt[rowInt,:]=xyCoords[row,:]
-    #     delta=xyCoords[row+1,1]-xyCoords[row,1]
-    #     if abs(delta)>1:
-    #         vorZeichen=(delta>0)*1+(delta<=0)*-1
-    #         xValues=np.arange(xyCoords[row,1]+vorZeichen,xyCoords[row+1,1],vorZeichen)
-            
-    #         deltaY=xyCoords[row+1,0]-xyCoords[row,0]
-    #         vorZeichen=(deltaY>0)*1+(deltaY<=0)*-1
-    #         step=deltaY/abs(delta)
-    #         if step==0:
-    #             yValues=np.ones(int(abs(delta)-1))*xyCoords[row,0]
-    #         else:
-    #             yValues=np.arange(xyCoords[row,0]+step,xyCoords[row+1,0]-step/2,step)
-                
-    #         yValues=np.round(yValues).astype(int)
-            
-    #         angles=np.ones(int(abs(delta)-1))*xyCoords[row,2]
-            
-    #         data=np.stack((yValues,xValues,angles),axis=1)
-    #         xyCoordsInt[rowInt+1:int(rowInt+abs(delta)),:]=data
-            
-    #     rowInt =int(rowInt+abs(delta))
-    
-    # xyCoordsInt[-1,:]=xyCoords[-1,:]
-        
+       
         
     rowInt=0
     for row in range(0,np.shape(xyCoords)[0],1):
@@ -240,17 +233,17 @@ def xyCoordsInterp(xyCoords):
             
             
 
-def showXYCoords(testimage,xyList,size):
-        bgAr=np.zeros(np.shape(testimage))
+def showXYCoords(image,xyList,size):
+        bgAr=np.zeros(np.shape(image))
         for xyCoords in xyList:
              for p in xyCoords:
-                 bgAr=np.max((bgAr,printRedCube(testimage,np.array([None,p[0],p[1],size,1]))),axis=0)
+                 bgAr=np.max((bgAr,printRedCube(image,np.array([None,p[0],p[1],size,1]))),axis=0)
             
         bgAr=bgAr.astype(np.uint8)
-        showImg(util.img_as_ubyte(resize(np.stack((np.zeros(np.shape(testimage),np.uint8),testimage,bgAr),axis=2),(600,600))))
+        showImg(util.img_as_ubyte(resize(np.stack((np.zeros(np.shape(image),np.uint8),image,bgAr),axis=2),(600,600))))
 
 #Search while loop
-def walkAlongOutlineBiased(startAngle,y,x,minSize,schwelle,dist2Center,leftTurn):
+def walkAlongOutlineBiased(image,startAngle,y,x,minSize,schwelle,dist2Center,leftTurn):
     #2nd point anywhere around the 1 with 360°
     #Possible Outline found. Check CIrcumfrence for similar Cubes
     cubeNotFoundAtAll=False
@@ -278,7 +271,8 @@ def walkAlongOutlineBiased(startAngle,y,x,minSize,schwelle,dist2Center,leftTurn)
     
     #Schleife während auch bei max Distanz kein punkt gefunden wird und kein Punkt zwei mal erreicht wird.
     while not cubeNotFoundAtAll and not circleFinished:
-        outlineCord=createSearchCoordSorted(testimage,y,x, dist2Center, searchAngle,searchAngleWidth)
+        cubeNotFound=True
+        outlineCord=createSearchCoordSorted(image,y,x, dist2Center, searchAngle,searchAngleWidth)
         # print(str(x) + "x     :y " + str(y))
 
         outLineAr=np.empty((0,5),np.uint8)
@@ -290,7 +284,7 @@ def walkAlongOutlineBiased(startAngle,y,x,minSize,schwelle,dist2Center,leftTurn)
             
 
         for p in outlineCord:     
-            data=np.array([(checkCubeSize(testimage,p[0],p[1],minSize,schwelle,2))])
+            data=np.array([(checkCubeSize(image,p[0],p[1],minSize,schwelle,2))])
             outLineAr=np.append(outLineAr, data,axis=0)
             if data[0,4]>schwelle:
                 cubeNotFound, y2,x2,sizeFound,areaFill2 =outLineAr[-1,:]
@@ -308,28 +302,30 @@ def walkAlongOutlineBiased(startAngle,y,x,minSize,schwelle,dist2Center,leftTurn)
                 # print("auch bei maximaler weite kein punkt gefunden")
             
         
-        if any(np.equal(xyCoordsFound[:,0:2],[y2,x2]).all(1)):
+        if not cubeNotFound and any(np.equal(xyCoordsFound[:,0:2],[y2,x2]).all(1)):
             print("circle finished")
             circleFinished=True
         
         
-        angle12=np.arctan2(([y2-y]),([x2-x]))*180/np.pi
-        angle12=angle12
+
         #Only print x and y into found xy, if they where in bound and reached the schwellwert
         if cubeNotFound:
             1+1
             # print("cube out of bounds oder kein schwellwert erreicht")
         else:
+            angle12=np.arctan2(([y2-y]),([x2-x]))*180/np.pi
+            angle12=angle12
             xyCoordsFound=np.vstack((xyCoordsFound,(np.transpose([y2,x2,angle12]))))
+            searchAngleWidth=180
+            searchAngle=angle12
+            y=y2
+            x=x2
             
 
         
         # print(str(x2) + "x     :y " + str(y2)  +"  with angle " + str(angle12))
         
-        searchAngleWidth=180
-        searchAngle=angle12
-        y=y2
-        x=x2
+
         
 
         
@@ -337,7 +333,7 @@ def walkAlongOutlineBiased(startAngle,y,x,minSize,schwelle,dist2Center,leftTurn)
 
 
  #Search while loop
-def walkAlongOutline(y,x,minSize,schwelle,dist2Center):
+def walkAlongOutline(image,y,x,minSize,schwelle,dist2Center):
     #2nd point anywhere around the 1 with 360°
     #Possible Outline found. Check CIrcumfrence for similar Cubes
     cubeNotFoundAtAll=False
@@ -355,7 +351,7 @@ def walkAlongOutline(y,x,minSize,schwelle,dist2Center):
 
         outLineAr=np.empty((0,5),np.uint8)
         for p in outlineCord:         
-            outLineAr=np.append(outLineAr, np.array([(checkCubeSize(testimage,p[0],p[1],minSize,schwelle,2))]),axis=0)
+            outLineAr=np.append(outLineAr, np.array([(checkCubeSize(image,p[0],p[1],minSize,schwelle,2))]),axis=0)
     
         outLineAr=outLineAr[outLineAr[:,4]>=np.max(outLineAr[:,4])]
         cubeNotFound, y2,x2,sizeFound,areaFill2 =outLineAr[0,:]
@@ -391,14 +387,14 @@ def walkAlongOutline(y,x,minSize,schwelle,dist2Center):
         
     return xyCoordsFound
 
-def printRedCube(testimage,arr):
+def printRedCube(image,arr):
         bol,y,x,cubeLength, schwelleReached=arr
         y=int(y)
         x=int(x)
         # print(str(y) + ":" + str(x))
         length=int(cubeLength+8)
         l2=(length/2)
-        bgAr= np.zeros(np.shape(testimage),np.uint8)
+        bgAr= np.zeros(np.shape(image),np.uint8)
         cubeFillAr=np.ones((length,length),np.uint8)*255
         cubeClearAr=np.zeros((length-4,length-4),np.uint8)*255
         cubeFillAr[2:length-2,2:length-2]=cubeClearAr
@@ -409,48 +405,48 @@ def printRedCube(testimage,arr):
             bgAr[int(y-l2):int(y+l2),int(x-l2):int(x+l2)]=cubeFillAr
         return bgAr
         
-def createSearchCoord(image,y,x, dist2Center, searchAngle,searchAngleWidth):
+# def createSearchCoord(image,y,x, dist2Center, searchAngle,searchAngleWidth):
 
     
-    #Creates coordintes around found x,y cube
-    yTop=min(y+dist2Center,np.shape(image)[0]-1)
-    yBot=max(y-dist2Center,0)
-    xLeft=max(x-dist2Center,0)
-    xRight=min(x+dist2Center,np.shape(image)[1]-1)
+#     #Creates coordintes around found x,y cube
+#     yTop=min(y+dist2Center,np.shape(image)[0]-1)
+#     yBot=max(y-dist2Center,0)
+#     xLeft=max(x-dist2Center,0)
+#     xRight=min(x+dist2Center,np.shape(image)[1]-1)
     
-    centerXTop=np.transpose(np.vstack((np.ones((dist2Center*2)+1)*yTop,np.arange(xLeft,xRight+1))))
-    centerXBot=np.transpose(np.vstack((np.ones((dist2Center*2)+1)*yBot,np.arange(xLeft,xRight+1))))
-    centerYLeft= np.transpose(np.vstack((np.arange(yBot+dist2Center-(dist2Center-1)/2-1,yTop-dist2Center+(dist2Center-1)/2+2), np.ones((dist2Center)+2)*(xLeft))))
-    centerYRight= np.transpose(np.vstack((np.arange(y-(dist2Center-1)/2-1,yTop-dist2Center+(dist2Center-1)/2+2), np.ones((dist2Center)+2)*(xRight))))
-    outlineCord=np.vstack(((centerXTop, centerXBot , centerYLeft , centerYRight)))
-    
-    
-    #Creates angles to filter for. 0° is straight right 180 straight left, 90 up, -90 down
-    outlineCordsOrigin=np.transpose(np.vstack((outlineCord[:,0]-y,outlineCord[:,1]-x)))
-    outlineAngles=np.empty(np.shape(outlineCord)[0])
+#     centerXTop=np.transpose(np.vstack((np.ones((dist2Center*2)+1)*yTop,np.arange(xLeft,xRight+1))))
+#     centerXBot=np.transpose(np.vstack((np.ones((dist2Center*2)+1)*yBot,np.arange(xLeft,xRight+1))))
+#     centerYLeft= np.transpose(np.vstack((np.arange(yBot+dist2Center-(dist2Center-1)/2-1,yTop-dist2Center+(dist2Center-1)/2+2), np.ones((dist2Center)+2)*(xLeft))))
+#     centerYRight= np.transpose(np.vstack((np.arange(y-(dist2Center-1)/2-1,yTop-dist2Center+(dist2Center-1)/2+2), np.ones((dist2Center)+2)*(xRight))))
+#     outlineCord=np.vstack(((centerXTop, centerXBot , centerYLeft , centerYRight)))
     
     
-    #Creates mask according to allowe angles
-    outlineAngles=np.arctan2(outlineCordsOrigin[:,0],outlineCordsOrigin[:,1])/(np.pi)*180
-    if searchAngleWidth==360:
-        outlineCord=outlineCord
-    elif searchAngle+searchAngleWidth/2>180:
-        angleLow=-180-((searchAngle+searchAngleWidth/2) % 180)
-        angleHigh=searchAngle-searchAngleWidth/2
-        mask=np.max((np.less(outlineAngles,angleLow),np.greater(outlineAngles,angleHigh)),axis=0)
-        outlineCord=outlineCord[mask]
-    elif (searchAngle-searchAngleWidth/2)<-180:
-        angleHigh=180-((searchAngle-searchAngleWidth/2) % 180)
-        angleLow=searchAngle-searchAngleWidth/2        
-        mask=np.max((np.less(outlineAngles,angleLow),np.greater(outlineAngles,angleHigh)),axis=0)
-        outlineCord=outlineCord[mask]
-    else:
-        angleLow=searchAngle-searchAngleWidth/2
-        angleHigh=searchAngle+searchAngleWidth/2
-        mask=np.min((np.greater(outlineAngles,angleLow),np.less(outlineAngles,angleHigh)),axis=0)
-        outlineCord=outlineCord[mask]
+#     #Creates angles to filter for. 0° is straight right 180 straight left, 90 up, -90 down
+#     outlineCordsOrigin=np.transpose(np.vstack((outlineCord[:,0]-y,outlineCord[:,1]-x)))
+#     outlineAngles=np.empty(np.shape(outlineCord)[0])
+    
+    
+#     #Creates mask according to allowe angles
+#     outlineAngles=np.arctan2(outlineCordsOrigin[:,0],outlineCordsOrigin[:,1])/(np.pi)*180
+#     if searchAngleWidth==360:
+#         outlineCord=outlineCord
+#     elif searchAngle+searchAngleWidth/2>180:
+#         angleLow=-180-((searchAngle+searchAngleWidth/2) % 180)
+#         angleHigh=searchAngle-searchAngleWidth/2
+#         mask=np.max((np.less(outlineAngles,angleLow),np.greater(outlineAngles,angleHigh)),axis=0)
+#         outlineCord=outlineCord[mask]
+#     elif (searchAngle-searchAngleWidth/2)<-180:
+#         angleHigh=180-((searchAngle-searchAngleWidth/2) % 180)
+#         angleLow=searchAngle-searchAngleWidth/2        
+#         mask=np.max((np.less(outlineAngles,angleLow),np.greater(outlineAngles,angleHigh)),axis=0)
+#         outlineCord=outlineCord[mask]
+#     else:
+#         angleLow=searchAngle-searchAngleWidth/2
+#         angleHigh=searchAngle+searchAngleWidth/2
+#         mask=np.min((np.greater(outlineAngles,angleLow),np.less(outlineAngles,angleHigh)),axis=0)
+#         outlineCord=outlineCord[mask]
         
-    return outlineCord
+#     return outlineCord
     
 def createSearchCoordSorted(image,y,x, dist2Center, searchAngle,searchAngleWidth):
 
@@ -662,10 +658,10 @@ def main():
     
     buf_gray=(255*giveDxDxDiff(buf,5,5)).astype(np.uint8)
     # playNpArray(buf_gray)
-    test=np.array(image_functions.schwellwert(buf_gray,10), dtype=np.uint8)
-    playNpArray(test)
+    images=np.array(image_functions.schwellwert(buf_gray,10), dtype=np.uint8)
+    playNpArray(images)
     
-    return test[50]
+    return images, rgb2gray(buf)
 
 def showImg(image):
     if str(image.dtype)=='uint8':
@@ -679,8 +675,8 @@ def showImg(image):
 def giveDxDxDiff(data,dx,dy):
     #Analyze grayscale for now
     data=rgb2gray(data)
-    data_dx=image_functions.shiftx(data, 2)
-    data_dy=image_functions.shifty(data,2)
+    data_dx=image_functions.shiftx(data, -2)
+    data_dy=image_functions.shifty(data,-2)
     stackdx=np.stack((data,data_dx),axis=0)
     stackdy=np.stack((data,data_dy),axis=0)
     
@@ -746,12 +742,12 @@ def resizeAndSaveVideo(path,horizontalRes,frameNr):
     out.release()
     cv2.destroyAllWindows()
     
-def  whereIsOutside(testimage,y,x,lengthCheck):
+def  whereIsOutside(image,y,x,lengthCheck):
     ymin=int(max(y-lengthCheck/2,0))
     xmin=int(max(x-lengthCheck/2,0))
-    ymax=int(min(y+lengthCheck/2,np.shape(testimage)[0]))  
-    xmax=int(min(x+lengthCheck/2,np.shape(testimage)[1]))      
-    subImage=testimage[ymin:ymax,xmin:xmax]
+    ymax=int(min(y+lengthCheck/2,np.shape(image)[0]))  
+    xmax=int(min(x+lengthCheck/2,np.shape(image)[1]))      
+    subImage=image[ymin:ymax,xmin:xmax]
     alpha=np.arange(0,180,10)
     
     results=map(partial(rotAndSum, subImage), alpha)
@@ -773,13 +769,26 @@ def f360to180(angle):
     return angle % 360 -180
 
 
-def findStartAngle(testimage,y,x,lengthCheck):
-    startAngles=(whereIsOutside(testimage,y,x,lengthCheck))
+def findStartAngle(image,y,x,lengthCheck):
+    startAngles=(whereIsOutside(image,y,x,lengthCheck))
     index_min = min(range(len(startAngles[0])), key=startAngles[0].__getitem__)
     index_max = max(range(len(startAngles[0])), key=startAngles[0].__getitem__)
     hlp=max([0,1],key=[abs(startAngles[0][index_min]),abs(startAngles[0][index_max])].__getitem__)
     return (hlp==0)*(f360to180(startAngles[1][index_min])+180-90)+(hlp==1)*(f360to180(startAngles[1][index_max]+90+180))    
-    
+   
+
+
 if __name__ == "__main__":
-    testimage=main()
-    test()
+    testimages,buf=main()
+    testimages=testimages[52:73,:,:]
+    buf=buf[52:73,:,:]
+    testimages=list(testimages)
+    
+    
+    results=list(map(test,testimages))
+    
+    for n in range(0,len(testimages)):
+         testimages[n]=np.min((gauss(results[n],sigma=2),buf[n]*255),axis=0).astype(np.uint8)
+         showImg(testimages[n])
+    
+    playNpArray(np.asarray(testimages))
