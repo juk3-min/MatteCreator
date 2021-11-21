@@ -14,16 +14,56 @@ from scipy.spatial import ConvexHull as ConvexHull
 #     plt.plot(points[simplex, 0], points[simplex, 1], 'k-')
     
 def main():
-    arr=rnd2dPoints(100,10)
-    plotPoints(arr)
-    plotLines(arr)
+    # arr=rnd2dPoints(1000,1000)
+    arr=test
+    plotPointsAndLines(arr,convHull(arr))
     
+def convHull(arr):
     vertices=ConvexHull(arr).vertices
-    Hull=np.take(arr[:,],vertices,axis=0)
+    return np.take(arr[:,],vertices,axis=0)
 
-    plotPointsAndLines(arr,Hull)
 
+def nearestPoint(arr,point,k):
+    distance=(arr[:,0]-point[0])*(arr[:,0]-point[0])+(arr[:,1]-point[1])*(arr[:,1]-point[1])
+    idx = np.argpartition(distance, k)
+    return arr[idx[:k]],idx
     
+def sortByAngle(kNearestPoints,currentPoint,prevAngle):
+    return np.arctan2(kNearestPoints[:,0]-currentPoint[0],kNearestPoints[:,1]-currentPoint[1])+180
+    
+def concHull(arr,k):
+    #Input. List of points to process (pointsList); number of neighbours (k) 
+    #Output. An ordered list of points representing the computed polygon
+    #from http://repositorium.sdum.uminho.pt/bitstream/1822/6429/1/ConcaveHull_ACM_MYS.pdf
+    #ONCAVE HULL: A K-NEAREST NEIGHBOURS APPROACH 
+    # FOR THE COMPUTATION OF THE REGION OCCUPIED BY A 
+    # SET OF POINTS 
+    # Adriano Moreira and Maribel Yasmina Santos
+    
+    #Make sure k is at least 3
+    kk=max(k,3)
+    
+    if len(arr)<3:
+        return None
+    elif len(arr)==3:
+        return arr
+    
+    index=np.argmin(arr)
+    firstPoint=np.array(arr[index,0],arr[index,1])
+    hull=firstPoint
+    currentPoint=firstPoint
+    arr=np.delete(arr,index,axis=0)
+    previousAngle=0
+    step=2
+    
+    while (((currentPoint!=firstPoint) or( step==2)) and (len[arr]>0) ) :
+        if step==5:
+            arr=np.insert(arr,firstPoint,axis=0)
+            
+        kNearestPoints, idx=nearestPoint(arr,firstPoint)
+        cPoints=sortByAngle(kNearestPoints,currentPoint,prevAngle)
+        
+
 def rnd2dPoints(n,limit):
     return np.random.randint(-limit,limit,(n,2))
 
@@ -42,12 +82,12 @@ def plotLines(array2d):
 
 def plotPointsAndLines(arr1,arr2):
         # fig, ax = plt.subplots()
-    plt.scatter(arr1[:,0], arr1[:,1],s=15)  
-    plt.plot(arr2[:,0], arr2[:,1])
+    plt.scatter(arr1[:,1], -arr1[:,0],s=15)  
+    plt.plot(arr2[:,1], -arr2[:,0], 'r')
     plt.show()
     
 
 
 
 if __name__ == "__main__":
-     main()
+    main()

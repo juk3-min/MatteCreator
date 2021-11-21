@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import concaveHull
 from skimage.transform import resize
 from skimage.transform import rotate
 from skimage import util
@@ -20,7 +21,13 @@ import scipy.ndimage as ndimage
 
 def test_func(values):
      return values.sum()/100
-         
+   
+
+def getXYCoordsFromPixels(image, schwelle):
+      result=np.where(image>=schwelle)
+      listOfCoordinates= list(zip(result[0], result[1]))
+      return np.asarray(listOfCoordinates)
+      
 def main():
     #Makes numpy Arrays from video
     buf=giveImgsFromVid('small.mp4')
@@ -58,103 +65,107 @@ def main():
 
         dtPic[noiseMask]=0
         showImg(dtPic)
+        
+        return dtPic
+        
+        
+        
         # fillMask=similarGreyVal(dtPic, buf_gray[i])
         
-
-        #Buffer dt mask with boarder as search start
-        # pic=np.random.random_integers(255,size=(10,10))
-        # dtPic=np.zeros((10,10))
-        # dtPic[4,5]=255
+        # #Buffer dt mask with boarder as search start
+        # # pic=np.random.random_integers(255,size=(10,10))
+        # # dtPic=np.zeros((10,10))
+        # # dtPic[4,5]=255
         
-        #buffer and search for same colors
-        sB=3
+        # #buffer and search for same colors
+        # sB=3
         
-        dtpicBuf=np.zeros((np.shape(dtPic)[0]+sB*2,(np.shape(dtPic)[1]+sB*2)))
-        dtpicBuf[sB:np.shape(dtPic)[0]+sB,sB:np.shape(dtPic)[1]+sB]=dtPic
+        # dtpicBuf=np.zeros((np.shape(dtPic)[0]+sB*2,(np.shape(dtPic)[1]+sB*2)))
+        # dtpicBuf[sB:np.shape(dtPic)[0]+sB,sB:np.shape(dtPic)[1]+sB]=dtPic
         
-        #Buffer Picture with boarder
-        # pic[3:5,3:7]=5
-        picBuf=np.zeros(np.shape(dtpicBuf))
+        # #Buffer Picture with boarder
+        # # pic[3:5,3:7]=5
+        # picBuf=np.zeros(np.shape(dtpicBuf))
         
-        #!!!!!!!!
-        picBuf[sB:np.shape(dtPic)[0]+sB,sB:np.shape(dtPic)[1]+sB]=buf_gray[52]
+        # #!!!!!!!!
+        # picBuf[sB:np.shape(dtPic)[0]+sB,sB:np.shape(dtPic)[1]+sB]=buf_gray[52]
         
-        #Searched Pic to show which pixel has been searched already
-        searchedPic=np.zeros(np.shape(picBuf)).astype(bool)
+        # #Searched Pic to show which pixel has been searched already
+        # searchedPic=np.zeros(np.shape(picBuf)).astype(bool)
         
         
-
 
 
-        # x = dtpicBuf
 
-        # footprint = np.ones((50,50))
+        # # x = dtpicBuf
+
+        # # footprint = np.ones((50,50))
+        # # showImg(dtpicBuf.astype(np.uint8))
+        # # # dtpicBuf = ndimage.generic_filter(x, test_func, footprint=footprint)
+        
+        # # dtpicBuf=
         # showImg(dtpicBuf.astype(np.uint8))
-        # # dtpicBuf = ndimage.generic_filter(x, test_func, footprint=footprint)
         
-        # dtpicBuf=
-        showImg(dtpicBuf.astype(np.uint8))
-        
-        dtpicBuf=gauss(dtpicBuf,sigma=4)
-        showImg(dtpicBuf.astype(np.uint8))
-        #Go through all pixels
-        y=1
-        schwelle=0.05
-        while y<np.shape(picBuf)[0]-1:
-            x=1
-            print(y)
-            while x<np.shape(picBuf)[1]-1:
-               pixel=dtpicBuf[y,x]
-               if pixel>=50:
-                    #If Neighbouring Pixel is same as center pixel, set dtPic to 255, set this pixel to searchedPic=True. only search pixels if searchedPic=false
-                    if not searchedPic[y,x]:
-                        searchedPic[y,x]=True
+        # dtpicBuf=gauss(dtpicBuf,sigma=4)
+        # showImg(dtpicBuf.astype(np.uint8))
+        # #Go through all pixels
+        # y=1
+        # schwelle=0.05
+        # while y<np.shape(picBuf)[0]-1:
+        #     x=1
+        #     print(y)
+        #     while x<np.shape(picBuf)[1]-1:
+        #        pixel=dtpicBuf[y,x]
+        #        if pixel>=50:
+        #             #If Neighbouring Pixel is same as center pixel, set dtPic to 255, set this pixel to searchedPic=True. only search pixels if searchedPic=false
+        #             if not searchedPic[y,x]:
+        #                 searchedPic[y,x]=True
                         
-                        block=picBuf[y-sB:y+1+sB,x-sB:x+1+sB]
-                        # print(block)
+        #                 block=picBuf[y-sB:y+1+sB,x-sB:x+1+sB]
+        #                 # print(block)
                         
-                        mask=np.logical_or(block<block[sB,sB]-schwelle,block>schwelle+block[sB,sB])
-                        fill=np.ones((1+2*sB,1+2*sB))*pixel
+        #                 mask=np.logical_or(block<block[sB,sB]-schwelle,block>schwelle+block[sB,sB])
+        #                 fill=np.ones((1+2*sB,1+2*sB))*pixel
                         
-                        fill[mask]=0
-                        # print(fill)
+        #                 fill[mask]=0
+        #                 # print(fill)
                         
-                        picBuf[y-sB:y+1+sB,x-sB:x+1+sB][np.logical_not(mask)]=picBuf[y,x]
+        #                 picBuf[y-sB:y+1+sB,x-sB:x+1+sB][np.logical_not(mask)]=picBuf[y,x]
                         
-                        dtpicBuf[y-sB:y+1+sB,x-sB:x+1+sB]=np.max((fill,dtpicBuf[y-sB:y+1+sB,x-sB:x+1+sB]),axis=0)
+        #                 dtpicBuf[y-sB:y+1+sB,x-sB:x+1+sB]=np.max((fill,dtpicBuf[y-sB:y+1+sB,x-sB:x+1+sB]),axis=0)
                         
-                        # showImg(np.min((dtpicBuf[1:np.shape(dtPic)[0]+1,1:np.shape(dtPic)[1]+1],buf_gray[51]*255),axis=0).astype(np.uint8))
-                        # searchedPic[y-1:y+2,x-1:x+2]=fill.astype(bool)
-                        #to make sure thate pixels to the top left are also searched if set to 255 through this loop, go back 1 row and 1 column
-                        #x will be incremented right after this conditional --> -2
-                        # x-=2
-                        # y-=1
-               x+=1         
-            y+=1            
+        #                 # showImg(np.min((dtpicBuf[1:np.shape(dtPic)[0]+1,1:np.shape(dtPic)[1]+1],buf_gray[51]*255),axis=0).astype(np.uint8))
+        #                 # searchedPic[y-1:y+2,x-1:x+2]=fill.astype(bool)
+        #                 #to make sure thate pixels to the top left are also searched if set to 255 through this loop, go back 1 row and 1 column
+        #                 #x will be incremented right after this conditional --> -2
+        #                 # x-=2
+        #                 # y-=1
+        #        x+=1         
+        #     y+=1            
                 
         
-        dtPic2=dtpicBuf[1:361,1:641]
+        # dtPic2=dtpicBuf[1:361,1:641]
         
-        # dtPic=np.array(image_functions.schwellwert(dtPic,10), dtype=np.uint8)
+        # # dtPic=np.array(image_functions.schwellwert(dtPic,10), dtype=np.uint8)
         
-        dxdyMatte=matteFromDxDySchwellert(np.squeeze(buf_dx[51]))
-        dxdyMatte=np.array(image_functions.schwellwert(gauss(dxdyMatte,sigma=5),200), dtype=np.uint8)
-        
-        
-        print("Picture without noise")
-        MatteComb=np.max((0*dxdyMatte,dtPic),axis=0).astype(np.uint8)
-        images=np.min((MatteComb,buf_gray[51]*255),axis=0).astype(np.uint8)
-        showImg(images)
+        # dxdyMatte=matteFromDxDySchwellert(np.squeeze(buf_dx[51]))
+        # dxdyMatte=np.array(image_functions.schwellwert(gauss(dxdyMatte,sigma=5),200), dtype=np.uint8)
         
         
-        print("Picture without noise and search for similar colors")        
-        MatteComb=np.max((0*dxdyMatte,dtPic2),axis=0).astype(np.uint8)
-        images2=np.min((MatteComb,buf_gray[51]*255),axis=0).astype(np.uint8)
-        showImg(images2)
+        # print("Picture without noise")
+        # MatteComb=np.max((0*dxdyMatte,dtPic),axis=0).astype(np.uint8)
+        # images=np.min((MatteComb,buf_gray[51]*255),axis=0).astype(np.uint8)
+        # showImg(images)
         
         
-    print("stop")
-    return dxdyMatte
+        # print("Picture without noise and search for similar colors")        
+        # MatteComb=np.max((0*dxdyMatte,dtPic2),axis=0).astype(np.uint8)
+        # images2=np.min((MatteComb,buf_gray[51]*255),axis=0).astype(np.uint8)
+        # showImg(images2)
+       
+        
+    # print("stop")
+    # return dxdyMatte
     # showUsedMatteFromDxDy(buf)
     
     
@@ -940,8 +951,7 @@ def giveImgsFromVid(filename):
 
 
 if __name__ == "__main__":
-    1+1
-    dxdyMatte=main()
+    image=main()
 
     
 
