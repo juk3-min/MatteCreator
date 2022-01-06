@@ -66,6 +66,11 @@ def main():
         dtPic[noiseMask]=0
         showImg(dtPic)
         
+        #~~~~~~~21.12.2021
+        arr=getXYCoordsFromPixels(dtPic,1)
+        conc=concaveHull.concHull(arr,300)
+        concaveHull.plotPointsAndLines(arr,conc)
+        
         return dtPic
         
         
