@@ -823,6 +823,10 @@ def showImg(image):
     else:
         print("Achtung, Daten zum abspielen kein uint8")
 
+
+
+        
+        
 #Gives Grayscale Differencemap for x and y displacement
 def giveDxDxDiff(data,dx,dy):
     #Analyze grayscale for now
